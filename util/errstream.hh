@@ -25,26 +25,42 @@ throw_c(bool test, const std::string &msg = "crypto fail")
 
     return;
 }
-class fatal : public std::stringstream {
+
+class err_stream {
  public:
-    ~fatal() __attribute__((noreturn)) {
-        std::cerr << str() << std::endl;
+    virtual ~err_stream() noexcept(false) {}
+
+    template <typename T>
+    std::ostream &operator<<(T &s) {
+        stream << s;
+        return stream;
+    }
+
+ protected:
+    std::stringstream stream;
+};
+
+
+class fatal : public err_stream {
+ public:
+    ~fatal() noexcept(false) __attribute__((noreturn)) {
+        std::cerr << stream.str() << std::endl;
         exit(-1);
     }
 };
 
-class cryptdb_err : public std::stringstream {
+class cryptdb_err : public err_stream {
  public:
-    ~cryptdb_err() __attribute__((noreturn)) {
-        std::cerr << str() << std::endl;
-        throw CryptDBError(str());
+    ~cryptdb_err() noexcept(false) __attribute__((noreturn)) {
+        std::cerr << stream.str() << std::endl;
+        throw CryptDBError(stream.str());
     }
 };
 
-class thrower : public std::stringstream {
+class thrower : public err_stream {
  public:
     ~thrower() noexcept(false) __attribute__((noreturn)) {
-        throw std::runtime_error(str());
+        throw std::runtime_error(stream.str());
     }
 };
 
