@@ -215,7 +215,8 @@ query_parse::query_parse(const std::string &db, const std::string &q)
         if (t->fill_derived_tables())
             throw CryptDBError("fill_derived_tables");
 
-        if (open_normal_and_derived_tables(t, lex->query_tables, 0))
+        THD *t2 =  static_cast<THD *>(create_embedded_thd(0));
+        if (open_normal_and_derived_tables(t2, lex->query_tables, 0))
             throw CryptDBError("open_normal_and_derived_tables");
 
         if (lex->sql_command == SQLCOM_SELECT) {
