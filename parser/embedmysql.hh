@@ -9,17 +9,6 @@
 #include <mysql.h>
 #include <sql_base.h>
 
-class embedmysql {
- public:
-    embedmysql(const std::string &dir);
-    virtual ~embedmysql();
-
-    MYSQL *conn();
-
- private:
-    MYSQL *m;
-};
-
 class query_parse {
  public:
     query_parse(const std::string &db, const std::string &q);

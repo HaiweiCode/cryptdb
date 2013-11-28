@@ -9,7 +9,9 @@
 
 #include <main/rewrite_main.hh>
 #include <main/rewrite_util.hh>
+
 #include <parser/sql_utils.hh>
+#include <parser/mysql_type_metadata.hh>
 
 __thread ProxyState *thread_ps = NULL;
 
@@ -61,47 +63,6 @@ static std::map<std::string, WrapperState*> clients;
 
 static int
 returnResultSet(lua_State *L, const ResType &res);
-
-static Item *
-make_item_by_type(const std::string &value, enum_field_types type)
-{
-    Item * i;
-
-    switch(type) {
-    case MYSQL_TYPE_SHORT:
-    case MYSQL_TYPE_LONG:
-    case MYSQL_TYPE_LONGLONG:
-    case MYSQL_TYPE_INT24:
-    case MYSQL_TYPE_TINY:
-        i = new (current_thd->mem_root) Item_int(static_cast<long long>(valFromStr(value)));
-        break;
-
-    case MYSQL_TYPE_DOUBLE:
-        i = new (current_thd->mem_root) Item_float(value.c_str(),
-                                                   value.size());
-        break;
-
-    case MYSQL_TYPE_BLOB:
-    case MYSQL_TYPE_TINY_BLOB:
-    case MYSQL_TYPE_MEDIUM_BLOB:
-    case MYSQL_TYPE_LONG_BLOB:
-    case MYSQL_TYPE_VARCHAR:
-    case MYSQL_TYPE_VAR_STRING:
-    case MYSQL_TYPE_TIMESTAMP:
-    case MYSQL_TYPE_DATE:
-    case MYSQL_TYPE_NEWDATE:
-    case MYSQL_TYPE_TIME:
-    case MYSQL_TYPE_DATETIME:
-        i = new (current_thd->mem_root) Item_string(make_thd_string(value),
-                                                    value.length(),
-                                                    &my_charset_bin);
-        break;
-
-    default:
-        thrower() << "unknown data type " << type;
-    }
-    return i;
-}
 
 static Item_null *
 make_null(const std::string &name = "")
@@ -390,7 +351,7 @@ getResTypeFromLuaTable(lua_State *const L, int fields_index,
                    && static_cast<uint>(key) < out_res->types.size());
             const std::string data = xlua_tolstring(L, -1);
             Item *const value =
-                make_item_by_type(data, out_res->types[key]);
+                MySQLFieldTypeToItem(out_res->types[key], data);
             row[key] = std::shared_ptr<Item>(value);
 
             lua_pop(L, 1);

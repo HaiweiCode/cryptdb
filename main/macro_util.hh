@@ -3,6 +3,11 @@
 #include <main/rewrite_ds.hh>
 #include <main/error.hh>
 
+#define TYPENAME(value)                                         \
+    std::string typeName() const {return (value);}              \
+    static std::string instanceTypeName() {return (value);}
+
+
 #define RETURN_FALSE_IF_FALSE(status)       \
 {                                           \
     if (!(status)) {                        \
@@ -106,6 +111,8 @@ testTextMessageError(const std::string &file_name,
     testTextMessageError(__FILE__, __LINE__, (test), (message));    \
 }                                                                   \
 
+#define TEST_Text TEST_TextMessageError
+
 #define FAIL_TextMessageError(message)                              \
 {                                                                   \
     throw TextMessageError(__FILE__, __LINE__, (message));          \
@@ -173,4 +180,3 @@ testSync(const std::string &file_name, unsigned int line_number,
 {                                                                   \
     testSync(__FILE__, __LINE__, false, (identifier_name));         \
 }
-

@@ -9,11 +9,16 @@ using namespace std;
 static bool lib_initialized = false;
 
 void
-init_mysql(const string & embed_db)
+init_mysql(const string &embed_db)
 {
-    if (lib_initialized) {
+    // FIXME: can still get a weird case where something calls
+    // init_mysql(...) and lib_initialized is true so it continues on to
+    // execute a query against the embedded database; but the thread
+    // initializing the embedded database still hasn't completed
+    if (!__sync_bool_compare_and_swap(&lib_initialized, false, true)) {
         return;
     }
+
     char dir_arg[1024];
     snprintf(dir_arg, sizeof(dir_arg), "--datadir=%s", embed_db.c_str());
 
@@ -27,35 +32,9 @@ init_mysql(const string & embed_db)
             "--language=" MYSQL_BUILD_DIR "/sql/share/"
     };
 
-    assert(0== mysql_library_init(sizeof(mysql_av)/sizeof(mysql_av[0]),
+    assert(0 == mysql_library_init(sizeof(mysql_av)/sizeof(mysql_av[0]),
                                   (char**) mysql_av, 0));
     assert(0 == mysql_thread_init());
-
-    lib_initialized = true;
-}
-
-bool
-isTableField(string token)
-{
-    size_t pos = token.find(".");
-
-    if (pos == string::npos) {
-        return false;
-    } else {
-        return true;
-    }
-}
-
-// NOTE: Use FieldMeta::fullName if you know what onion's full name you
-// need.
-string
-fullName(string field, string table)
-{
-    if (isTableField(field)) {
-        return field;
-    } else {
-        return table + "." + field;
-    }
 }
 
 char *
@@ -83,16 +62,10 @@ ItemToString(const Item &i) {
 
 string
 ItemToStringWithQuotes(const Item &i) {
-    if (RiboldMYSQL::is_null(i)) {
-        return std::string("NULL");
-    }
-
-    bool is_null;
-    const std::string &s0 = RiboldMYSQL::val_str(i, &is_null);
-    assert(false == is_null);
+    const std::string &s = ItemToString(i);
     if (i.type() != Item::Type::STRING_ITEM) {
-        return s0;
+        return s;
     }
 
-    return "\"" + s0 + "\"";
+    return "\"" + s + "\"";
 }

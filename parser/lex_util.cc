@@ -38,7 +38,7 @@ dup_item(const Item_func &i)
             return new (current_thd->mem_root)
                 Item_func_neg(i.arguments()[0]);
         default:
-            cryptdb_err() << "Can't clone function type: " << i.type();
+            thrower() << "Can't clone function type: " << i.type();
     }
 }
 
@@ -135,6 +135,8 @@ make_item_ref(const Item_ref &i, Item *const new_ref,
     return i0;
 }
 
+// a special type of Item used in ON DUPLICATE KEY UPDATE queries
+// where the item is inside of a VALUES(...) function
 Item_insert_value *
 make_item_insert_value(const Item_insert_value &i,
                        Item_field *const field)

@@ -29,21 +29,12 @@ std::string getFieldsItSelect(std::list<std::string> & words, std::list<std::str
 bool isNested(const std::string &query);
 
 //returns true if token is of the form 'string.string"
-//bool isTableField(std::string token);
-//std::string fullName(std::string field, std::string name);
 
 bool isField(std::string token);
-//given table.field, the following two return the appropriate part
-//if the structure given is not of this form, it is considered a field with ""
-// table
-std::string getField(std::string tablefield);
-std::string getTable(std::string tablefield);
 
 //returns true if "id" is the name of salt; isTableSalt set to true  if it is
 std::string
 getTableSalt(std::string anonTableName);
-// a table salt
-bool isSalt(std::string id, bool & isTableSalt);
 //returns the anonymized name of the table with this salt
 std::string getTableOfSalt(std::string salt_name);
 

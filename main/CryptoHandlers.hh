@@ -12,6 +12,7 @@
 #include <crypto/SWPSearch.hh>
 
 #include <main/dbobject.hh>
+#include <main/macro_util.hh>
 
 #include <sql_select.h>
 #include <sql_delete.h>
@@ -51,8 +52,7 @@ public:
     EncLayer() : LeafDBMeta() {}
     EncLayer(unsigned int id) : LeafDBMeta(id) {}
 
-    std::string typeName() const {return type_name;}
-    static std::string instanceTypeName() {return type_name;}
+    TYPENAME("encLayer")
 
     virtual SECLEVEL level() const = 0;
     virtual std::string name() const = 0;
@@ -81,9 +81,6 @@ public:
 
 protected:
      friend class EncLayerFactory;
-
-private:
-     constexpr static const char * type_name = "encLayer";
 };
 
 class HOM : public EncLayer {

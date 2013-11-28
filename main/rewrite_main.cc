@@ -504,8 +504,6 @@ loadSchemaInfo(const std::unique_ptr<Connect> &conn,
 
     loadChildren(schema.get());
 
-    // FIXME: Ideally we would do this before loading the schema.
-    // But first we must decide on a place to create the database from.
     assert(sanityCheck(*schema.get()));
 
     return std::move(schema);
@@ -1323,6 +1321,7 @@ Rewriter::dispatchOnLex(Analysis &a, const ProxyState &ps,
         // > ie, USE <database>.
         // possible FIXME: just look at the size of the deltas
         if (Analysis::SpecialQuery::NO_CHANGE_META_DDL==a.special_query) {
+            assert(a.deltas.size() == 0);
             return new DMLOutput(original_query, lex_to_query(out_lex));
         }
         assert(Analysis::SpecialQuery::NOT_SPECIAL == a.special_query);
@@ -1332,73 +1331,6 @@ Rewriter::dispatchOnLex(Analysis &a, const ProxyState &ps,
     } else {
         return NULL;
     }
-}
-
-struct DirectiveData {
-    std::string table_name;
-    std::string field_name;
-    SECURITY_RATING sec_rating;
-
-    DirectiveData(const std::string query)
-    {
-        std::list<std::string> tokens = split(query, " ");
-        assert(tokens.size() == 4);
-        tokens.pop_front();
-
-        table_name = tokens.front();
-        tokens.pop_front();
-
-        field_name = tokens.front();
-        tokens.pop_front();
-
-        sec_rating = TypeText<SECURITY_RATING>::toType(tokens.front());
-        tokens.pop_front();
-    }
-};
-
-// FIXME: Implement.
-// SYNTAX
-// > DIRECTIVE UPDATE cryptdb_metadata
-//                SET <table_name | field_name | rating> = [value]
-// > DIRECTIVE SELECT <table_name | field_name | rating>
-//               FROM cryptdb_metadata
-//              WHERE <table_name | field_name | rating> = [value]
-RewriteOutput *
-Rewriter::handleDirective(Analysis &a, const ProxyState &ps,
-                          const std::string &query)
-{
-    DirectiveData data(query);
-    const FieldMeta &fm =
-        a.getFieldMeta(a.getDatabaseName(), data.table_name,
-                       data.field_name);
-    const SECURITY_RATING current_rating = fm.getSecurityRating();
-    if (current_rating < data.sec_rating) {
-        FAIL_TextMessageError("cryptdb does not support going to a more"
-                              " secure rating!");
-    } else if (current_rating == data.sec_rating) {
-        return new SimpleOutput(mysql_noop());
-    } else {
-        // Actually do things.
-        FAIL_TextMessageError("implement handleDirective!");
-    }
-}
-
-static
-bool
-cryptdbDirective(const std::string &query)
-{
-    std::size_t found = query.find("DIRECTIVE");
-    if (std::string::npos == found) {
-        return false;
-    }
-    
-    for (std::size_t i = 0; i < found; ++i) {
-        if (!std::isspace(query[i])) {
-            return false;
-        }
-    }
-
-    return true;
 }
 
 QueryRewrite
@@ -1411,16 +1343,13 @@ Rewriter::rewrite(const ProxyState &ps, const std::string &q,
 
     Analysis analysis(default_db, schema);
 
-    RewriteOutput *output;
-    if (cryptdbDirective(q)) {
-        output = Rewriter::handleDirective(analysis, ps, q);
-    } else {
-        // NOTE: Care what data you try to read from Analysis
-        // at this height.
-        output = Rewriter::dispatchOnLex(analysis, ps, q);
-        if (!output) {
-            output = new SimpleOutput(mysql_noop());
-        }
+    // NOTE: Care what data you try to read from Analysis
+    // at this height.
+    RewriteOutput *const output =
+        Rewriter::dispatchOnLex(analysis, ps, q);
+    if (!output) {
+        return QueryRewrite(true, analysis.rmeta,
+                            new SimpleOutput(mysql_noop()));
     }
 
     return QueryRewrite(true, analysis.rmeta, output);
@@ -1513,7 +1442,8 @@ static ResType
 mysql_noop_res(const ProxyState &ps)
 {
     std::unique_ptr<DBResult> noop_dbres;
-    assert(ps.getConn()->execute(mysql_noop(), &noop_dbres));
+    TEST_Text(ps.getConn()->execute(mysql_noop(), &noop_dbres),
+              "noop query failed");
     return ResType(noop_dbres->unpack());
 }
 

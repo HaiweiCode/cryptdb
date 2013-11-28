@@ -16,6 +16,10 @@
 #include <parser/sql_utils.hh>
 #include <main/rewrite_main.hh>
 
+typedef std::map<const std::string, const std::string> FieldOnionState;
+typedef std::map<const std::string, FieldOnionState> TableOnionState;
+typedef std::map<const std::string, TableOnionState> DBOnionState;
+
 class TestConfig {
  public:
     TestConfig() {
@@ -65,15 +69,30 @@ struct CrashPoint {
 struct Query {
     std::string query;
     CrashPoint * crash_point;
+    DBOnionState * onion_states;
 
     Query(const std::string &q) {
         query = q;
         crash_point = NULL;
+        onion_states = NULL;
     }
 
     Query(const std::string &q, CrashPoint * cp) {
         query = q;
         crash_point = cp;
+        onion_states = NULL;
+    }
+
+    Query(const std::string &q, DBOnionState * os) {
+        query = q;
+        crash_point = NULL;
+        onion_states = os;
+    }
+
+    Query(const std::string &q, CrashPoint * cp, DBOnionState * os) {
+        query = q;
+        crash_point = cp;
+        onion_states = os;
     }
 };
 

@@ -173,11 +173,10 @@ class InsertHandler : public DMLHandler {
                     auto fmVecIt = fmVec.begin();
                     for (;;) {
                         const Item *const i = it0++;
+                        assert(!!i == (fmVec.end() != fmVecIt));
                         if (!i) {
-                            assert(fmVec.end() == fmVecIt);
                             break;
                         }
-                        assert(fmVec.end() != fmVecIt);
                         rewriteInsertHelper(*i, **fmVecIt, a, newList0);
                         ++fmVecIt;
                     }
@@ -197,8 +196,11 @@ class InsertHandler : public DMLHandler {
             auto fd_it = List_iterator<Item>(lex->update_list);
             auto val_it = List_iterator<Item>(lex->value_list);
             List<Item> res_fields, res_values;
-            assert(rewrite_field_value_pairs(fd_it, val_it, a, &res_fields,
-                                             &res_values));
+            TEST_TextMessageError(
+                rewrite_field_value_pairs(fd_it, val_it, a, &res_fields,
+                                          &res_values),
+                "rewrite_field_value_pairs failed in ON DUPLICATE KEY"
+                " UPDATE");
             new_lex->update_list = res_fields;
             new_lex->value_list = res_values;
         }
@@ -363,11 +365,10 @@ process_field_value_pairs(List_iterator<Item> fd_it,
     for (;;) {
         const Item *const field_item = fd_it++;
         const Item *const value_item = val_it++;
+        assert(!!field_item == !!value_item);
         if (!field_item) {
-            assert(!value_item);
             break;
         }
-        assert(value_item != NULL);
         assert(field_item->type() == Item::FIELD_ITEM);
         const Item_field *const ifd =
             static_cast<const Item_field *>(field_item);
@@ -408,16 +409,7 @@ rewrite_order(Analysis &a, const SQL_I_List<ORDER> &lst,
     ORDER * prev = NULL;
     for (ORDER *o = lst.first; o; o = o->next) {
         const Item &i = **o->item;
-        const std::unique_ptr<RewritePlan> &rp =
-            constGetAssert(a.rewritePlans, &i);
-        const EncSet es = constr.intersect(rp->es_out);
-        // FIXME: Add version that will take a second EncSet of what
-        // we had available (ie, rp->es_out).
-        TEST_NoAvailableEncSet(es, i.type(), constr, rp->r.why,
-                            std::vector<std::shared_ptr<RewritePlan> >());
-        const OLK olk = es.chooseOne();
-
-        Item *const new_item = itemTypes.do_rewrite(i, olk, *rp.get(), a);
+        Item *const new_item = rewrite(i, constr, a);
         ORDER *const neworder = make_order(o, new_item);
         if (NULL == prev) {
             *new_lst = *oneElemListWithTHD(neworder);
@@ -471,11 +463,10 @@ rewrite_field_value_pairs(List_iterator<Item> fd_it,
     for (;;) {
         const Item *const field_item = fd_it++;
         const Item *const value_item = val_it++;
+        assert(!!field_item == !!value_item);
         if (!field_item) {
-            assert(NULL == value_item);
             break;
         }
-        assert(NULL != value_item);
 
         assert(field_item->type() == Item::FIELD_ITEM);
         const Item_field *const ifd =
@@ -535,7 +526,7 @@ addSaltToReturn(ReturnMeta *const rm, int pos)
 
 static void
 rewrite_proj(const Item &i, const RewritePlan &rp, Analysis &a,
-             List<Item> *newList)
+             List<Item> *const newList)
 {
     AssignOnce<OLK> olk;
     AssignOnce<Item *> ir;
@@ -562,7 +553,9 @@ rewrite_proj(const Item &i, const RewritePlan &rp, Analysis &a,
     addToReturn(&a.rmeta, a.pos++, olk.get(), use_salt, i.name);
 
     if (use_salt) {
-        // HACK: 'ir' doesn't have to be an Item_field
+        TEST_TextMessageError(Item::Type::FIELD_ITEM == ir.get()->type(),
+            "a projection requires a salt and is not a field; cryptdb"
+            " does not currently support such behavior");
         const std::string &anon_table_name =
             static_cast<Item_field *>(ir.get())->table_name;
         const std::string &anon_field_name = olk.get().key->getSaltName();
@@ -618,7 +611,9 @@ process_table_aliases(const List<TABLE_LIST> &tll, Analysis &a)
         if (t->is_alias) {
             TEST_TextMessageError(t->db == a.getDatabaseName(),
                                   "Database discrepancry!");
-            assert(a.addAlias(t->alias, t->db, t->table_name));
+            TEST_TextMessageError(
+                a.addAlias(t->alias, t->db, t->table_name),
+                "failed to add alias " + std::string(t->alias));
         }
 
         if (t->nested_join) {

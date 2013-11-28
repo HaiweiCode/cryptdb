@@ -567,7 +567,11 @@ queryPreamble(const ProxyState &ps, const std::string &q,
     if ((*qr)->output->usesEmbeddedDB()) {
         TEST_TextMessageError(lowLevelSetCurrentDatabase(ps.getEConn(),
                                                          default_db),
-                              "Failed to set default embedded database!");
+            "failed to set the embedded database to " + default_db + ";"
+            " your client may be in an unrecoverable bad loop"
+            " so consider restarting just the _client_. this can happen"
+            " if you tell your client to connect to a database that exists"
+            " but was not created through cryptdb.");
     }
 
     (*qr)->output->beforeQuery(ps.getConn(), ps.getEConn());

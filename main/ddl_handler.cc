@@ -15,10 +15,10 @@ class CreateTableHandler : public DDLHandler {
         LEX *const new_lex = copyWithTHD(lex);
 
         //TODO: support for "create table like"
-        if (lex->create_info.options & HA_LEX_CREATE_TABLE_LIKE) {
-            cryptdb_err() << "No support for create table like yet. "
-                          << "If you see this, please implement me";
-        }
+        TEST_TextMessageError(
+                !(lex->create_info.options & HA_LEX_CREATE_TABLE_LIKE),
+                "No support for create table like yet. "
+                "If you see this, please implement me");
 
         // Create the table regardless of 'IF NOT EXISTS' if the table
         // doesn't exist.
@@ -31,12 +31,16 @@ class CreateTableHandler : public DDLHandler {
             // -----------------------------
             // HACK.
             // > We know that there is only one table.
-            // > We also know that rewrite_table_list is going to fail to
-            // find this table in 'a'.
+            // > We do not currently support CREATE + SELECT syntax
+            //   ! CREATE TABLE t2 SELECT * FROM t1;
+            // > We also know that Analysis does not have a reference to
+            //   the table as it depends on SchemaInfo.
             // > And we know that the table we want is tm with name table.
             // > This will _NOT_ gracefully handle a malformed CREATE TABLE
             // query.
-            assert(1 == new_lex->select_lex.table_list.elements);
+            TEST_Text(1 == new_lex->select_lex.table_list.elements,
+                      "we do not support multiple tables in a CREATE"
+                      " TABLE queries");
             // Take the table name straight from 'tm' as
             // Analysis::getAnonTableName relies on SchemaInfo.
             TABLE_LIST *const tbl =
@@ -97,21 +101,29 @@ class CreateTableHandler : public DDLHandler {
     }
 };
 
-// > TODO: mysql permits a single ALTER TABLE command to invoke _multiple_
-//   and _different_ subcommands.
-//   ie, ALTER TABLE t ADD COLUMN x integer, ADD INDEX i (z);
-//   Currently we do not support mixed operations.
-//   > Must guarentee that rewrite_table_list is only called one time.
-//   > If we drop Keys and Columns in the same query the order is probably
-//     going to get changed.
+// mysql does not support indiscriminate add-drops
+// ie, 
+//      mysql> create table pk (x integer);
+//      Query OK, 0 rows affected (0.09 sec)
+//
+//      mysql> alter table pk drop column x, add column x integer,
+//                            drop column x;
+//      ERROR 1091 (42000): Can't DROP 'x'; check that column/key exists
+//
+//      mysql> alter table pk drop column x, add column x integer;
+//      Query OK, 0 rows affected (0.03 sec)
+//      Records: 0  Duplicates: 0  Warnings: 0
 class AlterTableHandler : public DDLHandler {
     virtual LEX *rewriteAndUpdate(Analysis &a, LEX *lex,
                                   const ProxyState &ps,
                                   const Preamble &pre) const
     {
-        assert(sub_dispatcher->canDo(lex));
+        TEST_Text(sub_dispatcher->canDo(lex),
+                  "your ALTER TABLE query may require at least one"
+                  " unsupported feature");
         const std::vector<AlterSubHandler *> &handlers =
             sub_dispatcher->dispatch(lex);
+        assert(handlers.size() > 0);
 
         LEX *new_lex = copyWithTHD(lex);
 

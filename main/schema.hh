@@ -50,9 +50,7 @@ public:
 
     std::string serialize(const DBObject &parent) const;
     std::string getAnonOnionName() const;
-    // FIXME: Use rtti.
-    std::string typeName() const {return type_name;}
-    static std::string instanceTypeName() {return type_name;}
+    TYPENAME("onionMeta")
     std::vector<DBMeta *>
         fetchChildren(const std::unique_ptr<Connect> &e_conn);
     bool applyToChildren(std::function<bool(const DBMeta &)>) const;
@@ -74,7 +72,6 @@ public:
 private:
     // first in list is lowest layer
     std::vector<std::unique_ptr<EncLayer> > layers;
-    constexpr static const char *type_name = "onionMeta";
     const std::string onionname;
     unsigned long uniq_count;
     mutable std::list<std::unique_ptr<UIntMetaKey>> generated_keys;
@@ -119,9 +116,7 @@ public:
     unsigned long getUniq() const {return uniq_count;}
 
     OnionMeta *getOnionMeta(onion o) const;
-    // FIXME: Use rtti.
-    std::string typeName() const {return type_name;}
-    static std::string instanceTypeName() {return type_name;}
+    TYPENAME("fieldMeta");
 
     SECURITY_RATING getSecurityRating() const {return sec_rating;}
     unsigned long leaseIncUniq() {return counter++;}
@@ -134,7 +129,6 @@ public:
     bool getHasSalt() const {return has_salt;}
 
 private:
-    constexpr static const char *type_name = "fieldMeta";
     const onionlayout onion_layout;
     const bool has_salt; //whether this field has its own salt
     const SECURITY_RATING sec_rating;
@@ -180,16 +174,13 @@ public:
     std::string getAnonTableName() const;
     std::vector<FieldMeta *> orderedFieldMetas() const;
     std::vector<FieldMeta *> defaultedFieldMetas() const;
-    // FIXME: Use rtti.
-    std::string typeName() const {return type_name;}
-    static std::string instanceTypeName() {return type_name;}
+    TYPENAME("tableMeta")
     unsigned long leaseIncUniq() {return counter++;}
     unsigned long getCurrentUniqCounter() {return counter;}
 
     friend class Analysis;
 
 private:
-    constexpr static const char *type_name = "tableMeta";
     unsigned int counter;
 
     std::string getAnonIndexName(const std::string &index_name,
@@ -208,12 +199,7 @@ public:
     ~DatabaseMeta() {}
 
     std::string serialize(const DBObject &parent) const;
-    // FIXME: rtti
-    std::string typeName() const {return type_name;}
-    static std::string instanceTypeName() {return type_name;}
-
-private:
-    constexpr static const char *type_name = "databaseMeta";
+    TYPENAME("databaseMeta")
 };
 
 // AWARE: Table/Field aliases __WILL NOT__ be looked up when calling from
@@ -224,12 +210,9 @@ public:
     SchemaInfo() : MappedDBMeta(0) {}
     ~SchemaInfo() {}
 
-    std::string typeName() const {return type_name;}
-    static std::string instanceTypeName() {return type_name;}
+    TYPENAME("schemaInfo")
 
 private:
-    constexpr static const char *type_name = "schemaInfo";
-
     std::string serialize(const DBObject &parent) const
     {
         FAIL_TextMessageError("SchemaInfo can not be serialized!");
@@ -261,7 +244,4 @@ private:
     bool no_loads;
     const unsigned int id;
 };
-
-bool
-IsMySQLTypeNumeric(enum_field_types t);
 

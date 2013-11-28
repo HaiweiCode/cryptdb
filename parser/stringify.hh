@@ -8,6 +8,7 @@
 
 #include <util/util.hh>
 #include <util/enum_text.hh>
+#include <parser/mysql_type_metadata.hh>
 
 template<class T>
 std::string stringify_ptr(T * x) {
@@ -139,96 +140,6 @@ std::string ListJoin(List<T> lst, std::string delim,
     return output;
 }
 
-static const char *
-sql_type_to_string(const Create_field &f)
-{
-#define ASSERT_NOT_REACHED() \
-    do { \
-        assert(false); \
-        return ""; \
-    } while (0)
-
-    const enum_field_types tpe = f.sql_type;
-    const CHARSET_INFO *const charset = f.charset;
-
-    switch (tpe) {
-    case MYSQL_TYPE_DECIMAL     : return "DECIMAL";
-    case MYSQL_TYPE_TINY        : return "TINYINT";
-    case MYSQL_TYPE_SHORT       : return "SMALLINT";
-    case MYSQL_TYPE_LONG        : return "INT";
-    case MYSQL_TYPE_FLOAT       : return "FLOAT";
-    case MYSQL_TYPE_DOUBLE      :
-        // HACK:
-        /*
-            For arguments that have no fixed number of decimals, the
-            `decimals' value is set to 31, which is 1 more than the maximum
-            number of decimals permitted for the `DECIMAL':
-            numeric-types,  `FLOAT': numeric-types, and `DOUBLE':
-            numeric-types. data types. As of MySQL 5.5.3, this value is
-            available as the constant `NOT_FIXED_DEC' in the `mysql_com.h'
-            header file.
-
-            in short; 'real' is encoded as an invalid DOUBLE type.
-        */
-        if (NOT_FIXED_DEC == f.decimals
-            && (DBL_DIG + 7) == f.length) {
-            return "REAL";
-        }
-
-        return "DOUBLE";
-    case MYSQL_TYPE_NULL        : ASSERT_NOT_REACHED();
-    case MYSQL_TYPE_TIMESTAMP   : return "TIMESTAMP";
-    case MYSQL_TYPE_LONGLONG    : return "BIGINT";
-    case MYSQL_TYPE_INT24       : return "MEDIUMINT";
-    case MYSQL_TYPE_DATE        : return "DATE";
-    case MYSQL_TYPE_TIME        : return "TIME";
-    case MYSQL_TYPE_DATETIME    : return "DATETIME";
-    case MYSQL_TYPE_YEAR        : return "YEAR";
-    case MYSQL_TYPE_NEWDATE     : ASSERT_NOT_REACHED();
-    case MYSQL_TYPE_VARCHAR     :
-        if (charset == &my_charset_bin) {
-            return "VARBINARY";
-        } else {
-            return "VARCHAR";
-        }
-    case MYSQL_TYPE_BIT         : return "BIT";
-    case MYSQL_TYPE_NEWDECIMAL  : return "DECIMAL";
-    case MYSQL_TYPE_ENUM        : return "ENUM";
-    case MYSQL_TYPE_SET         : return "SET";
-    case MYSQL_TYPE_TINY_BLOB   :
-        if (charset == &my_charset_bin) {
-            return "TINYBLOB";
-        } else {
-            return "TINYTEXT";
-        }
-    case MYSQL_TYPE_MEDIUM_BLOB :
-        if (charset == &my_charset_bin) {
-            return "MEDIUMBLOB";
-        } else {
-            return "MEDIUMTEXT";
-        }
-    case MYSQL_TYPE_LONG_BLOB   :
-        if (charset == &my_charset_bin) {
-            return "LONGBLOB";
-        } else {
-            return "LONGTEXT";
-        }
-    case MYSQL_TYPE_BLOB        :
-        if (charset == &my_charset_bin) {
-            return "BLOB";
-        } else {
-            return "TEXT";
-        }
-    case MYSQL_TYPE_VAR_STRING  : ASSERT_NOT_REACHED();
-    case MYSQL_TYPE_STRING      : return "CHAR";
-
-    /* don't bother to support */
-    case MYSQL_TYPE_GEOMETRY    : ASSERT_NOT_REACHED();
-    }
-
-    ASSERT_NOT_REACHED();
-}
-
 static std::ostream&
 operator<<(std::ostream &out, CHARSET_INFO & ci) {
     out << ci.csname;
@@ -240,7 +151,7 @@ operator<<(std::ostream &out, Create_field &f)
 {
 
     // emit field name + type definition
-    out << f.field_name << " " << sql_type_to_string(f);
+    out << f.field_name << " " << MySQLTypeToText(f);
 
     // emit extra length info if necessary
     switch (f.sql_type) {
@@ -397,6 +308,16 @@ convert_lex_str(const LEX_STRING &l)
     return std::string(l.str, l.length);
 }
 
+inline std::string
+nullAccomodationConvertLexStr(const LEX_STRING &l)
+{
+    if (NULL == l.str) {
+        return "";
+    }
+
+    return convert_lex_str(l);
+}
+
 inline LEX_STRING
 string_to_lex_str(const std::string &s)
 {
@@ -451,13 +372,12 @@ operator<<(std::ostream &out, Key &k)
     case Key::SPATIAL     : kname = "SPATIAL";     break;
     case Key::FOREIGN_KEY : kname = "FOREIGN KEY"; break;
     default:
-        assert(false);
-        break;
+        thrower() << "Unsupported key type " << std::to_string(k.type);
     }
     out << kname;
 
     // index_name
-    std::string key_name(k.name.str, k.name.length);
+    const std::string key_name(k.name.str, k.name.length);
     if (!key_name.empty()) {
         out << " " << key_name;
     }
@@ -471,7 +391,8 @@ operator<<(std::ostream &out, Key &k)
     if (k.type == Key::FOREIGN_KEY) {
         auto fk = static_cast< Foreign_key& >(k);
         out << " references ";
-        const std::string &db_str(convert_lex_str(fk.ref_table->db));
+        const std::string &db_str =
+            nullAccomodationConvertLexStr(fk.ref_table->db);
         const std::string &tl_str(convert_lex_str(fk.ref_table->table));
         if (!db_str.empty()) {
             out << "" << db_str << "." << tl_str << "";
@@ -981,10 +902,7 @@ operator<<(std::ostream &out, LEX &lex)
         break;
 
     default:
-        for (std::stringstream ss;;) {
-            ss << "unhandled sql command " << lex.sql_command;
-            throw std::runtime_error(ss.str());
-        }
+        thrower() << "unhandled sql command " << lex.sql_command;
     }
 
     return out;

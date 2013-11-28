@@ -272,9 +272,9 @@ lowLevelGetCurrentDatabase(const std::unique_ptr<Connect> &c,
     const unsigned long *const l = mysql_fetch_lengths(db_res->n);
     assert(l != NULL);
 
+    assert((0 == l[0]) == (NULL == row[0]));
     *out_db = std::string(row[0], l[0]);
     if (out_db->size() == 0) {
-        assert(0 == l[0] && NULL == row[0]);
         return true;
     }
 
@@ -1170,8 +1170,9 @@ AdjustOnionOutput::queryAction(const std::unique_ptr<Connect> &conn)
                  std::to_string(this->getEmbeddedCompletionID()) + ";";
 
     std::unique_ptr<DBResult> db_res;
-    // FIXME: Throw exception.
-    assert(conn->execute(q, &db_res));
+    TEST_Text(conn->execute(q, &db_res),
+              "failed to determine if an onion adjustmented query should"
+              " be reissued!");
     assert(1 == mysql_num_rows(db_res->n));
 
     MYSQL_ROW row = mysql_fetch_row(db_res->n);

@@ -97,9 +97,9 @@ executeQuery(const ProxyState &ps, const std::string &q,
              const std::string &default_db,
              SchemaCache *const schema_cache, bool pp=true);
 
-#define UNIMPLEMENTED \
-        throw std::runtime_error(std::string("Unimplemented: ") + \
-                        std::string(__PRETTY_FUNCTION__))
+#define UNIMPLEMENTED                                               \
+    FAIL_TextMessageError(std::string("Unimplemented: ") +          \
+                            std::string(__PRETTY_FUNCTION__))
 
 class reason;
 class OLK;

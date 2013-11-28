@@ -108,7 +108,7 @@ static bool handle_line(ProxyState& ps, const std::string& q, bool pp=true)
   } catch (const AbstractException &e) {
       std::cout << e << std::endl;
       return true;
-  }  catch (const CryptDBError &e) {
+  } catch (const CryptDBError &e) {
       std::cout << "Low level error: " << e.msg << std::endl;
       return true;
   } catch (const std::runtime_error &e) {

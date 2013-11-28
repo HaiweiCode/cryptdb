@@ -21,8 +21,16 @@ static uint64_t no_conn = 1;
 static Connection * control;
 static Connection * test;
 
+
+static FieldOnionState num_os =
+    {{"oDET", "RND"}, {"oOPE", "RND"}, {"oAGG", "HOM"}, {"oPLAIN", "RND"}};
+static FieldOnionState str_os =
+    {{"oDET", "RND"}, {"oOPE", "RND"}, {"oPLAIN", "RND"}};
+static DBOnionState insert_os =
+    {{"test_insert", {{"id", num_os}, {"age", num_os}, {"salary", num_os}, {"address", str_os}, {"name", str_os}}}};
+
 static QueryList Insert = QueryList("SingleInsert",
-    { Query("CREATE TABLE test_insert (id integer , age integer, salary integer, address text, name text)"),
+    { Query("CREATE TABLE test_insert (id integer , age integer, salary integer, address text, name text)", &insert_os),
       Query("INSERT INTO test_insert VALUES (1, 21, 100, '24 Rosedale, Toronto, ONT', 'Pat Carlson')"),
       Query("SELECT * FROM test_insert"),
       Query("INSERT INTO test_insert (id, age, salary, address, name) VALUES (2, 23, 101, '25 Rosedale, Toronto, ONT', 'Pat Carlson2')"),
@@ -339,6 +347,13 @@ static QueryList Auto = QueryList("AutoInc",
       Query("INSERT INTO msgs VALUES (2, 1998, 'stacksondeck') ON DUPLICATE KEY UPDATE zooanimals = VALUES(zooanimals), msgtext = VALUES(msgtext)"),
       Query("SELECT * FROM msgs"),
       Query("SELECT SUM(zooanimals) FROM msgs"),
+      Query("ALTER TABLE msgs AUTO_INCREMENT = 555"),
+      Query("INSERT INTO msgs (msgtext, zooanimals) VALUES"
+            "   ('dolphins', 12)"),
+      Query("SELECT * FROM msgs"),
+      Query("INSERT INTO msgs (msgtext, zooanimals) VALUES"
+            "   ('sharks', 12)"),
+      Query("SELECT * FROM msgs"),
       Query("DROP TABLE msgs") });
 
 static QueryList Negative = QueryList("Negative",
@@ -560,6 +575,9 @@ static QueryList TableAliases = QueryList("TableAliases",
       Query("SELECT mercury.a, mercury.b, e.a FROM star AS mercury"
             " INNER JOIN mercury AS e ON (mercury.a = e.a)"
             " WHERE mercury.b <> 18 AND mercury.b <> 15"),
+      // throws an exception
+      // Query("SELECT * FROM star AS q WHERE a IN"
+            // "   (SELECT a FROM mercury)"),
       Query("DROP TABLE star"),
       Query("DROP TABLE mercury"),
       Query("DROP TABLE moon") });
@@ -617,11 +635,23 @@ static QueryList MiscBugs = QueryList("MiscBugs",
       // Query("SELECT SUM(spider) FROM bugs"),
       // Query("SELECT GREATEST(ant, 5000) FROM more_bugs"),
       // Query("SELECT GREATEST(12, ant, 5000) FROM more_bugs"),
-      // Query("CREATE TABLE crawlers (pink DATE)"),
-      // Query("SELECT * FROM bugs, more_bugs, crawlers, crawlies")
+      Query("CREATE TABLE crawlers (pink DATE)"),
+      Query("INSERT INTO crawlers VALUES"
+            "   ('0'), (0), ('2015-05-04 4:5:6')"),
+      Query("SELECT * FROM crawlers"),
+      Query("INSERT INTO crawlers VALUES"
+            "   ('2415-05-04 4:5:6'), ('1998-500-04 4:5:6')"),
+      Query("SELECT * FROM crawlers"),
+      Query("INSERT INTO crawlers VALUES"
+            "   ('100000-05-04 4:5:6'), ('1998-5-04 a:b:c'),"
+            "   ('1000-05-04 house'),   ('1998-4-04 2015')"),
+      Query("SELECT * FROM crawlers"),
+      Query("SELECT * FROM bugs, more_bugs, crawlers, crawlies"),
       Query("INSERT INTO real_type_bug VALUES (1, 2, 3)"),
       Query("SELECT * FROM real_type_bug"),
       Query("UPDATE real_type_bug SET a = a + 1, b = b + 1"),
+      // we don't currently support; but it shouldn't crash the system
+      Query("CREATE TABLE jjj SELECT * FROM enums"),
       Query("SHOW ENGINES"),
       Query("DROP TABLE crawlies"),
       Query("DROP TABLE enums"),
@@ -928,18 +958,23 @@ CheckQuery(const TestConfig &tc, const Query &query)
     } else {
         LOG(test) << "no crash point";
 
-        ResType test_res;
+        // _always_ execute the query against the control database
+        // > there may be side effects that we want even if the test
+        //   database throws an exception
+        // > ie, if an INSERT throws an exception we want the SELECTs
+        //   coming afterwards to fail as well
+        const ResType control_res = control->execute(query);
+        AssignOnce<ResType> test_res;
         try {
             test_res = test->execute(query);
         } catch (AbstractException &e) {
             std::cout << e << std::endl;
             return false;
         }
-        const ResType control_res = control->execute(query);
 
-        if (control_res.ok != test_res.ok) {
+        if (control_res.ok != test_res.get().ok) {
             LOG(warn) << "control " << control_res.ok
-                << ", test " << test_res.ok
+                << ", test " << test_res.get().ok
                 << " for query: " << query.query;
 
             if (tc.stop_if_fail) {
@@ -949,18 +984,46 @@ CheckQuery(const TestConfig &tc, const Query &query)
             return false;
         } 
 
-        if (!match(test_res, control_res)) {
+        if (!match(test_res.get(), control_res)) {
             LOG(warn) << "result mismatch for query: " << query.query;
             LOG(warn) << "control is:";
             printRes(control_res);
             LOG(warn) << "test is:";
-            printRes(test_res);
+            printRes(test_res.get());
 
             if (tc.stop_if_fail) {
                 thrower() << "stop on failure";
             }
 
             return false;
+        }
+    }
+
+    if (query.onion_states != NULL) {
+        DBOnionState dbos = *(query.onion_states);
+
+        ProxyState *const ps = test->getProxyState();
+        auto si = loadSchemaInfo(ps->getConn(), ps->getEConn());
+        const auto &dbs = si->children;
+        for (auto db_it = dbs.begin(); db_it != dbs.end(); ++db_it) {
+            const auto &ts = db_it->second->children;
+            for (auto t_it = ts.begin(); t_it != ts.end(); ++t_it) {
+                const std::string &t_name = t_it->first.getValue();
+                const auto &fs = t_it->second->children;
+                for (auto f_it = fs.begin(); f_it != fs.end(); ++f_it) {
+                    const std::string &f_name = f_it->first.getValue();
+                    const auto &os = f_it->second->children;
+                    for (auto o_it = os.begin(); o_it != os.end(); ++o_it) {
+                        const std::string &o_name =
+                            TypeText<onion>::toText(o_it->first.getValue());
+                        const std::string &level = 
+	  	            TypeText<SECLEVEL>::toText(o_it->second->getLayerBack()->level());
+                        if (dbos[t_name][f_name][o_name] != level) {
+                          return false;
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -1001,7 +1064,7 @@ CheckQueryList(const TestConfig &tc, const QueryList &queries) {
 static void
 RunTest(const TestConfig &tc) {
     // ###############################
-    //      TOTAL RESULT: 494/509
+    //      TOTAL RESULT: 504/523
     // ###############################
 
     std::vector<Score> scores;
@@ -1044,7 +1107,7 @@ RunTest(const TestConfig &tc) {
         scores.push_back(CheckQueryList(tc, BestEffort));
     }
 
-    // Pass 22/22
+    // Pass 24/27
     scores.push_back(CheckQueryList(tc, Auto));
 
     // Pass 8/10
@@ -1066,7 +1129,7 @@ RunTest(const TestConfig &tc) {
     // Pass 28/28
     scores.push_back(CheckQueryList(tc, DDL));
 
-    // Pass 20/20
+    // Pass 28/29
     scores.push_back(CheckQueryList(tc, MiscBugs));
 
     // Pass 12/12

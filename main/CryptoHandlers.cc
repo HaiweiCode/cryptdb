@@ -2,6 +2,7 @@
 #include <main/macro_util.hh>
 #include <main/schema.hh>
 #include <parser/lex_util.hh>
+#include <parser/mysql_type_metadata.hh>
 #include <crypto/ope.hh>
 #include <crypto/BasicCrypto.hh>
 #include <crypto/SWPSearch.hh>
@@ -231,46 +232,6 @@ std::string prng_expand(const std::string &seed_key, uint key_bytes)
     return prng.rand_string(key_bytes);
 }
 
-// returns the length of output by AES encryption of a string of given type
-// and len
-static
-std::pair<enum enum_field_types, unsigned long>
-type_len_for_AES_str(enum enum_field_types type, unsigned long len,
-                     bool pad)
-{
-    unsigned long res_len = len;
-    enum enum_field_types res_type = type;
-
-    switch (type) {
-        case MYSQL_TYPE_TINY_BLOB:
-        case MYSQL_TYPE_MEDIUM_BLOB:
-        case MYSQL_TYPE_LONG_BLOB:
-        case MYSQL_TYPE_BLOB:
-            break;
-        case MYSQL_TYPE_VARCHAR:
-        case MYSQL_TYPE_STRING:
-        case MYSQL_TYPE_TIMESTAMP:
-        case MYSQL_TYPE_DATE:
-        case MYSQL_TYPE_NEWDATE:
-        case MYSQL_TYPE_TIME:
-        case MYSQL_TYPE_DATETIME:
-            res_type = MYSQL_TYPE_VARCHAR;
-            TEST_TextMessageError(rounded_len(len, AES_BLOCK_BYTES, pad,
-                                              &res_len),
-                                  "The field you are trying to create is"
-                                  " too large!");
-            break;
-        default: {
-            const std::string t =
-                TypeText<enum enum_field_types>::toText(type);
-            assert_s(false, "unexpected sql_type" + t);
-         }
-    }
-
-    return std::make_pair(res_type, res_len);
-
-}
-
 //TODO: remove above newcreatefield
 static Create_field*
 createFieldHelper(const Create_field * const f,
@@ -369,7 +330,7 @@ private:
 std::unique_ptr<EncLayer>
 RNDFactory::create(Create_field * const cf, const std::string &key)
 {
-    if (IsMySQLTypeNumeric(cf->sql_type)) { // the ope case as well 
+    if (isMySQLTypeNumeric(*cf)) { // the ope case as well 
         return std::unique_ptr<EncLayer>(new RND_int(cf, key));
     } else {
         return std::unique_ptr<EncLayer>(new RND_str(cf, key));
@@ -484,8 +445,7 @@ Create_field *
 RND_str::newCreateField(const Create_field * const cf,
                         const std::string &anonname) const
 {
-    auto typelen = type_len_for_AES_str(cf->sql_type, cf->length, false);
-
+    const auto typelen = AESTypeAndLength(*cf, false);
     return createFieldHelper(cf, typelen.second, typelen.first,
                              anonname, &my_charset_bin);
 }
@@ -676,7 +636,7 @@ protected:
 std::unique_ptr<EncLayer>
 DETFactory::create(Create_field * const cf, const std::string &key)
 {
-    if (IsMySQLTypeNumeric(cf->sql_type)) {
+    if (isMySQLTypeNumeric(*cf)) {
         if (cf->sql_type == MYSQL_TYPE_DECIMAL
             || cf->sql_type == MYSQL_TYPE_NEWDECIMAL) {
             return std::unique_ptr<EncLayer>(new DET_dec(cf, key));
@@ -921,8 +881,7 @@ Create_field *
 DET_str::newCreateField(const Create_field * const cf,
                         const std::string &anonname) const
 {
-    auto typelen = type_len_for_AES_str(cf->sql_type, cf->length, true);
-
+    const auto typelen = AESTypeAndLength(*cf, true);
     return createFieldHelper(cf, typelen.second, typelen.first, anonname,
                              &my_charset_bin);
 }
@@ -1030,7 +989,7 @@ std::unique_ptr<EncLayer>
 DETJOINFactory::create(Create_field * const cf,
                        const std::string &key)
 {
-    if (IsMySQLTypeNumeric(cf->sql_type)) {
+    if (isMySQLTypeNumeric(*cf)) {
         if (cf->sql_type == MYSQL_TYPE_DECIMAL
             || cf->sql_type == MYSQL_TYPE_NEWDECIMAL) {
             return std::unique_ptr<EncLayer>(new DETJOIN_dec(cf, key));
@@ -1226,7 +1185,7 @@ private:
 std::unique_ptr<EncLayer>
 OPEFactory::create(Create_field * const cf, const std::string &key)
 {
-    if (IsMySQLTypeNumeric(cf->sql_type)) { 
+    if (isMySQLTypeNumeric(*cf)) { 
         if (cf->sql_type == MYSQL_TYPE_DECIMAL
             || cf->sql_type ==  MYSQL_TYPE_NEWDECIMAL) {
             return std::unique_ptr<EncLayer>(new OPE_dec(cf, key));

@@ -59,21 +59,6 @@ getTableSalt(std::string anonTableName) {
     return BASE_SALT_NAME + "_t_" + anonTableName;
 }
 
-bool
-isSalt(std::string id, bool & isTableSalt)
-{
-    if (id.find(BASE_SALT_NAME) == 0 || (isTableField(id) && (getField(id).find(BASE_SALT_NAME) == 0))) {
-        if (id.find(BASE_SALT_NAME+"_t_") == 0) {
-            isTableSalt = true;
-        } else {
-            isTableSalt = false;
-        }
-        return true;
-    }
-
-    return false;
-}
-
 std::string
 getTableOfSalt(std::string salt_name) {
 
@@ -97,32 +82,5 @@ getFieldsItSelect(std::list<std::string> & words,
     }
 
     return res;
-}
-
-/*
- * The following functions return field name and table name.
- * Require the data to be in the format table.field or field.
- *
- */
-std::string
-getField(std::string tablefield)
-{
-    if (isTableField(tablefield)) {
-        size_t pos = tablefield.find(".");
-        return tablefield.substr(pos+1, tablefield.length() - pos - 1);
-    } else {
-        return tablefield;
-    }
-}
-
-std::string
-getTable(std::string tablefield)
-{
-    if (isTableField(tablefield)) {
-        size_t pos = tablefield.find(".");
-        return tablefield.substr(0, pos);
-    } else {
-        return "";
-    }
 }
 

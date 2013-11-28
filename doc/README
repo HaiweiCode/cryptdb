@@ -1,20 +1,28 @@
 CryptDB: http://css.csail.mit.edu/cryptdb
 Wiki: https://github.com/burrows-labs/cryptdb-wiki/wiki/_pages
 
+CODE STATUS: CryptDB is currently a more advanced research prototype
+but not ready for production. We implemented support for the MySQL client
+but not other clients (JDBC, PHP, etc). It supports a wide range of DML
+queries, but not all SQL operations. It's open source, so contribute!
+
+
 Convention : When this document uses syntax like
                 single-quote text single-quote
                 + 'some-text-here'
                 + 'a second example'
              Such indicates that the reader is to use the value _without_
              the single-quotes.
-
+	     
 #########################################
 #########################################
-########### Getting Started #############
+########### Getting started   ###########
 #########################################
 #########################################
+    * Requirements:
+      > Ubuntu 12.04, 13.04
+      > ruby
     * Build CryptDB using the installation script.
-      > you will need to have Ruby installed
       > note, this script will stop and start your mysql instance.
       > scripts/install.rb <path-to-cryptdb>
         + <path-to-cryptdb> should just be '.' if you are in the cryptdb
@@ -37,8 +45,7 @@ Convention : When this document uses syntax like
 ####### A few ways to run CryptDB #######
 #########################################
 #########################################
-
-    Set (recommended: place this in your .bashrc):
+    Set (or place in your .bashrc):
     > export EDBDIR=/full/path/to/cryptdb/	
 
     I. Shell
@@ -63,14 +70,15 @@ Convention : When this document uses syntax like
         > To Start:
             obj/test/test queries plain proxy-single
 
+
 #########################################
 #########################################
 ############ Failing queries ############
 #########################################
 #########################################
 
-    > CryptDB currently supports a subset of MySQL's capabilities. Queries
-      can fail for a few reasons.
+	    
+    > Queries can fail for a few reasons.
       I) CryptDB can support the query, but we have not yet implemented it.
          This should throw an UNIMPLEMENTED exception.
       II) CryptDB can not support this type of query, likely for

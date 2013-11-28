@@ -124,7 +124,7 @@ class ANON : public CItemSubtypeIT<Item_field, Item::Type::FIELD_ITEM> {
         a.item_cache[&i] = std::make_pair(res, constr);
 
         // This rewrite may be inside of an ON DUPLICATE KEY UPDATE...
-        // where there query is using the VALUES(...) function.
+        // where the query is using the VALUES(...) function.
         if (isItem_insert_value(i)) {
             const Item_insert_value &insert_i =
                 static_cast<const Item_insert_value &>(i);

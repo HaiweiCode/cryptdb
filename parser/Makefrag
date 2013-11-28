@@ -1,7 +1,7 @@
 OBJDIRS	+= parser
 
 PARSERSRC	:= sql_utils.cc Annotation.cc lex_util.cc embedmysql.cc \
-                   mysqld-filler.cc
+                   mysqld-filler.cc mysql_type_metadata.cc
  
 PARSERPROGS	:= analyze load-schema print-back
 

@@ -49,18 +49,10 @@ class fatal : public err_stream {
     }
 };
 
-class cryptdb_err : public err_stream {
- public:
-    ~cryptdb_err() noexcept(false) __attribute__((noreturn)) {
-        std::cerr << stream.str() << std::endl;
-        throw CryptDBError(stream.str());
-    }
-};
-
 class thrower : public err_stream {
  public:
     ~thrower() noexcept(false) __attribute__((noreturn)) {
-        throw std::runtime_error(stream.str());
+        throw CryptDBError(stream.str());
     }
 };
 

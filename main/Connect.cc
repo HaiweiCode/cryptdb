@@ -12,11 +12,11 @@
 #include <sstream>
 #include <memory>
 
+#include <util/cryptdb_log.hh>
 #include <main/Connect.hh>
 #include <main/macro_util.hh>
-#include <util/cryptdb_log.hh>
-#include <main/schema.hh>
 #include <main/Analysis.hh>
+#include <parser/mysql_type_metadata.hh>
 
 __thread ProxyState *thread_ps = NULL;
 
@@ -76,7 +76,7 @@ Connect *Connect::getEmbedded(const std::string &embed_db)
     if (!mysql_real_connect(m, 0, 0, 0, 0, 0, 0,
                             CLIENT_MULTI_STATEMENTS)) {
         mysql_close(m);
-        cryptdb_err() << "mysql_real_connect: " << mysql_error(m);
+        thrower() << "mysql_real_connect: " << mysql_error(m);
     }
 
     Connect *const conn = new Connect(m);
@@ -199,7 +199,7 @@ getItem(char *const content, enum_field_types type, uint len)
         return new Item_null();
     }
     const std::string content_str = std::string(content, len);
-    if (IsMySQLTypeNumeric(type)) {
+    if (isMySQLTypeNumeric(type)) {
         const ulonglong val = valFromStr(content_str);
         return new Item_int(val);
     } else {

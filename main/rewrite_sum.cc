@@ -262,10 +262,12 @@ static class ANON : public CItemSubtypeIT<Item_ref, Item::Type::REF_ITEM> {
                     const RewritePlan &rp, Analysis &a) const
     {
         const std::string &db_name = a.getDatabaseName();
-        // HACK.
+        // SUPPORT
+        TEST_Text(Item::Type::FIELD_ITEM == (*i.ref)->type(),
+                  "Item_ref is not a field; no support");
         const std::string plain_table =
             static_cast<Item_field *>(*i.ref)->table_name;
-        const std::string anon_table =
+        const std::string &anon_table =
             a.getAnonTableName(db_name, plain_table);
 
         const std::string plain_field = i.field_name;

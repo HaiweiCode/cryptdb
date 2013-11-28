@@ -74,7 +74,7 @@ typedef struct SharedProxyState {
     SharedProxyState(ConnectionInfo ci, const std::string &embed_dir,
                      const std::string &master_key,
                      SECURITY_RATING default_sec_rating =
-                     SECURITY_RATING::BEST_EFFORT);
+                        SECURITY_RATING::BEST_EFFORT);
     ~SharedProxyState();
     SECURITY_RATING defaultSecurityRating() const
     {

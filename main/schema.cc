@@ -4,6 +4,7 @@
 
 #include <parser/lex_util.hh>
 #include <parser/stringify.hh>
+#include <parser/mysql_type_metadata.hh>
 #include <main/schema.hh>
 #include <main/rewrite_main.hh>
 #include <main/rewrite_util.hh>
@@ -52,8 +53,8 @@ DBMeta::doFetchChildren(const std::unique_ptr<Connect> &e_conn,
         " FROM " + table_name + 
         " WHERE " + table_name + ".parent_id"
         "   = " + parent_id + ";";
-    // FIXME: Throw exception.
-    assert(e_conn->execute(serials_query, &db_res));
+    TEST_TextMessageError(e_conn->execute(serials_query, &db_res),
+                          "doFetchChildren query failed");
     MYSQL_ROW row;
     while ((row = mysql_fetch_row(db_res->n))) {
         unsigned long * const l = mysql_fetch_lengths(db_res->n);
@@ -354,27 +355,6 @@ OnionMeta *FieldMeta::getOnionMeta(onion o) const
     return getChild(OnionMetaKey(o));
 }
 
-static bool encryptionNotSupported(const Create_field *const cf)
-{
-    switch (cf->sql_type) {
-        case MYSQL_TYPE_FLOAT:
-        case MYSQL_TYPE_DOUBLE:
-        case MYSQL_TYPE_TIMESTAMP:
-        case MYSQL_TYPE_DATE:
-        case MYSQL_TYPE_TIME:
-        case MYSQL_TYPE_DATETIME:
-        case MYSQL_TYPE_YEAR:
-        case MYSQL_TYPE_NEWDATE:
-        case MYSQL_TYPE_BIT:
-        case MYSQL_TYPE_ENUM:
-        case MYSQL_TYPE_SET:
-        case MYSQL_TYPE_GEOMETRY:
-            return true;
-        default:
-            return false;
-    }
-}
-
 onionlayout FieldMeta::determineOnionLayout(const AES_KEY *const m_key,
                                             const Create_field *const f,
                                             SECURITY_RATING sec_rating)
@@ -387,7 +367,7 @@ onionlayout FieldMeta::determineOnionLayout(const AES_KEY *const m_key,
     TEST_TextMessageError(m_key,
                           "Should be using SECURITY_RATING::PLAIN!");
 
-    if (encryptionNotSupported(f)) {
+    if (false == encryptionSupported(*f)) {
         TEST_TextMessageError(SECURITY_RATING::SENSITIVE != sec_rating,
                               "A SENSITIVE security rating requires the"
                               " field to be supported with cryptography!");
@@ -400,13 +380,13 @@ onionlayout FieldMeta::determineOnionLayout(const AES_KEY *const m_key,
     }
 
     if (SECURITY_RATING::SENSITIVE == sec_rating) {
-        if (true == IsMySQLTypeNumeric(f->sql_type)) {
+        if (true == isMySQLTypeNumeric(*f)) {
             return NUM_ONION_LAYOUT;
         } else {
             return STR_ONION_LAYOUT;
         }
     } else if (SECURITY_RATING::BEST_EFFORT == sec_rating) {
-        if (true == IsMySQLTypeNumeric(f->sql_type)) {
+        if (true == isMySQLTypeNumeric(*f)) {
             return BEST_EFFORT_NUM_ONION_LAYOUT;
         } else {
             return BEST_EFFORT_STR_ONION_LAYOUT;
@@ -438,7 +418,7 @@ std::string FieldMeta::determineDefaultValue(bool has_default,
     if (cf->def) {
         return ItemToString(*cf->def);
     } else {
-        if (true == IsMySQLTypeNumeric(cf->sql_type)) {
+        if (true == isMySQLTypeNumeric(*cf)) {
             return zero_string;
         } else {
             return empty_string;
@@ -666,19 +646,3 @@ SchemaCache::lowLevelCurrentUnstale(const std::unique_ptr<Connect> &e_conn)
     lowLevelToggleCurrentStaleness(e_conn, this->id, false);
 }
 
-bool
-IsMySQLTypeNumeric(enum_field_types t) {
-    switch (t) {
-        case MYSQL_TYPE_DECIMAL:
-        case MYSQL_TYPE_TINY:
-        case MYSQL_TYPE_SHORT:
-        case MYSQL_TYPE_LONG:
-        case MYSQL_TYPE_FLOAT:
-        case MYSQL_TYPE_DOUBLE:
-        case MYSQL_TYPE_LONGLONG:
-        case MYSQL_TYPE_INT24:
-        case MYSQL_TYPE_NEWDECIMAL:
-            return true;
-        default: return false;
-    }
-}
