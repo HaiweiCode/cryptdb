@@ -148,8 +148,7 @@ public:
     const std::string humanReadable(const Create_field &) const
         {return "DECIMAL";}
     std::pair<enum enum_field_types, unsigned long>
-        AESTypeAndLength(unsigned long len, bool pad) const
-        { assert(false); }
+        AESTypeAndLength(unsigned long len, bool pad) const;
     Item *intoItem(const std::string &value) const;
 };
 
@@ -275,6 +274,7 @@ public:
 class MySQLTimeStampMetaData :
     public AbstractMySQLDateMetaData<MYSQL_TYPE_TIMESTAMP> {
 public:
+    bool encryptionSupported() const {return true;}
     const std::string humanReadable(const Create_field &) const
         {return "TIMESTAMP";}
 };

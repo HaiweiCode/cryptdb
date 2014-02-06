@@ -158,6 +158,14 @@ MySQLLongLongMetaData::isRangeSupported(std::pair<int64_t, uint64_t> inclusiveRa
 // ########################################
 // ########################################
 template <enum enum_field_types id>
+std::pair<enum enum_field_types, unsigned long>
+AbstractMySQLDecimalMetaData<id>::AESTypeAndLength(unsigned long len,
+                                                   bool pad) const
+{
+    return genericVarCharCrypto(len + 10, pad);
+}
+
+template <enum enum_field_types id>
 Item *
 AbstractMySQLDecimalMetaData<id>::intoItem(const std::string &value) const
 {
